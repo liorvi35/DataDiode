@@ -1,12 +1,12 @@
 """
-1) recv from proxy1 udp
 
-2) send proxy2 udp
 """
+
+import os
 import socket
 
-DIODE_ADDR = ("127.0.0.1", 61948)
-PROXY2_ADDR = ("127.0.0.1", 61949)
+DATA_DIODE_ADDR = ("127.0.0.1", 61948) # IPv4 address and port of the data-diode
+PROXY2_ADDR = ("127.0.0.1", 61947) # IPv4 address and port of proxy2
 
 
 def recv_proxy1(sock):

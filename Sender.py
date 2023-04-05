@@ -1,6 +1,6 @@
 """
 this file contains the implementation for sender, first entity in data flow (1/5)
-:version: 1.1
+:version: 1.2
 :date: 05/24/2023
 :authors: Lior Vinman & Yoad Tamar
 """
@@ -9,6 +9,7 @@ import hashlib
 import socket
 import sys
 import os
+import tqdm
 
 NEW_FILE_NAME = "./secret"  # name for temporary file with encryption
 PROXY1_ADDR = ("127.0.0.1", 61947)  # IPv4 address and port of proxy1
@@ -28,6 +29,7 @@ def encrypt_md5(file):
     hex_rep = md5_enc.hexdigest()  # converting the result into hexadecimal representation
     with open(NEW_FILE_NAME, "w") as output:
         output.write(hex_rep)  # saving the result into new file (that we'll send)
+    print("[+] encrypted file into md5 format")
 
 
 def send_file(sock, file):
@@ -36,10 +38,21 @@ def send_file(sock, file):
     :param sock: TCP socket file descriptor
     :param file: file to send
     """
-    chunk = file.read(CHUNK_SIZE)  # reading chunk of file
-    while chunk:
-        sock.sendall(chunk)  # sending the chunk
-        chunk = file.read(CHUNK_SIZE)  # continuing reading the file
+    progress_bar = ""
+    try:
+        progress_bar = tqdm.tqdm(range(os.path.getsize(file)), f"Sending {file}",
+                                 unit_scale=True, unit_divisor=CHUNK_SIZE, unit="b")
+        chunk = file.read(CHUNK_SIZE)  # reading chunk of file
+        while chunk:
+            sock.sendall(chunk)  # sending the chunk
+            chunk = file.read(CHUNK_SIZE)  # continuing reading the file
+            progress_bar.update(8 * len(chunk))
+
+    except socket.error:
+        print("Cannot send, please make sure that 'proxy1' is online.")
+        exit(1)
+    finally:
+        progress_bar.close()
 
 
 def main():
@@ -50,10 +63,10 @@ def main():
     3- send the encrypted file to proxy1 via TCP socket
     4- cleanup: cleaning the files that has been created while reading
     5- closing connection with proxy1
-    :return:
+    :return: 1 if there is an error, 0 else
     """
     try:
-        with open(f"{sys.argv[1]}", "rb") as file:
+        with open(sys.argv[1], "rb") as file:
             encrypt_md5(file)
     except IndexError:
         print("Please provide path to file, usage: 'python3 Sender.py <path>'.")
@@ -69,13 +82,17 @@ def main():
         print("Cannot connect, please make sure that 'proxy1' is online.")
         exit(1)
 
-    with open(NEW_FILE_NAME, "rb") as file:
-        send_file(sender_sock, file)
-    os.remove(NEW_FILE_NAME)
-
-    sender_sock.shutdown(socket.SHUT_RDWR)
-    sender_sock.close()
+    try:
+        with open(NEW_FILE_NAME, "rb") as file:
+            send_file(sender_sock, file)
+        os.remove(NEW_FILE_NAME)
+        sender_sock.shutdown(socket.SHUT_RDWR)
+        sender_sock.close()
+    except PermissionError | OSError | IOError:
+        print("Error Occurred.")
+        exit(1)
 
 
 if __name__ == "__main__":
     main()
+    exit(0)
