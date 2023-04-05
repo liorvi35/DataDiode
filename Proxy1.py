@@ -1,93 +1,56 @@
-"""
-this file contains the implementation for proxy1, second entity in data flow (2/5)
-:version: 1.2
-:date: 05/24/2023
-:authors: Lior Vinman & Yoad Tamar
-"""
-
-import os
 import socket
+import os
+import io
 
-NEW_FILE_NAME = "./secret"  # name for temporary file with encryption
-PROXY1_ADDR = ("127.0.0.1", 61947)  # IPv4 address and port of proxy1
-DATA_DIODE_ADDR = ("127.0.0.1", 61948)  # IPv4 address and port of the data-diode
-NUM_CONN = 200  # max number of TCP-clients
-CHUNK_SIZE = 1024  # reading and writing files in chunks of 1KB
+
+FIRST_PROXY_ADDR = ("127.0.0.1", 5060)
+DATA_DIODE_ADDR = ("127.0.0.1", 5061)
+MAXIMUM_CONNECTIONS = 50
+NEW_FILE_NAME = "encrypt_proxy1"
+START_MESSAGE = b"SOF"
+END_MESSAGE = b"EOF"
 
 
 def send_file(file):
-    """
-    this function opens a UDP socket and sends a file through it
-    :param file: file to send
-    """
-    try:
-        proxy1_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # opening UDP socket
-        chunk = file.read(CHUNK_SIZE)  # reading file chunk
-        while chunk:
-            proxy1_udp_sock.sendto(chunk, DATA_DIODE_ADDR)  # sending chunks via socket
-            chunk = file.read(CHUNK_SIZE)  # continuing reading
-        # closing socket
-        proxy1_udp_sock.shutdown(socket.SHUT_RDWR)
-        proxy1_udp_sock.close()
-    except socket.error:
-        print("Error occurred, cannot create UDP socket")
+    flow_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    flow_sock.sendto(START_MESSAGE, DATA_DIODE_ADDR)
+    chunk = file.read(io.DEFAULT_BUFFER_SIZE)
+    while chunk:
+        flow_sock.sendto(chunk, DATA_DIODE_ADDR)
+        chunk = file.read(io.DEFAULT_BUFFER_SIZE)
+    flow_sock.sendto(END_MESSAGE, DATA_DIODE_ADDR)
+    flow_sock.close()
 
 
 def recv_file(sock):
-    """
-    this file receives a file from a TCP socket
-    :param sock: file descriptor of a TCP socket
-    """
-    try:
-        with open(NEW_FILE_NAME, "wb") as file:  # creating a new temporary file
-            chunk = sock.recv(CHUNK_SIZE)  # receiving file in chunks
-            while chunk:
-                file.write(chunk)  # writing into temporary file
-                chunk = sock.recv(1024)
-    except socket.error:
-        print("Cannot receive file.")
-        exit(1)
+    with open(NEW_FILE_NAME, "wb") as file:
+        chunk = sock.recv(io.DEFAULT_BUFFER_SIZE)
+        while chunk:
+            file.write(chunk)
+            chunk = sock.recv(io.DEFAULT_BUFFER_SIZE)
+
 
 def main():
-    """
-    main program flow:
-    1- open a TCP socket
-    2- get a connection from the sender
-    3- receive the encrypted file
-    4- open a UDP socket
-    5- send the file to DataDiod via UDP socket
-    6- delete temporary file & close sockets
-    :return: 1 if there is an error, 0 else
-    """
     try:
-        proxy1_tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        proxy1_tcp_sock.bind(PROXY1_ADDR)
-        proxy1_tcp_sock.listen(NUM_CONN)
-    except socket.error:
-        print("Error occurred, cannot open socket.")
-        exit(1)
+        server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_sock.bind(FIRST_PROXY_ADDR)
+        server_sock.listen(MAXIMUM_CONNECTIONS)
 
-    while True:
-        try:
-            sender_tcp_sock, sender_addr = proxy1_tcp_sock.accept()
-        except socket.error:
-            print("Error occurred, cannot accept connection.")
-            exit(1)
+        while True:
+            client_sock, client_addr = server_sock.accept()
+            recv_file(client_sock)
 
-        recv_file(sender_tcp_sock)
+            with open(NEW_FILE_NAME, "rb") as file:
+                send_file(file)
+            os.remove(NEW_FILE_NAME)
 
-        with open(NEW_FILE_NAME, "rb") as file:
-            send_file(file)
-
-        os.remove(NEW_FILE_NAME)
-        sender_tcp_sock.close()
+            client_sock.close()
+    except KeyboardInterrupt:
+        print("Closing Proxy1...")
+    finally:
+        if not server_sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR):
+            server_sock.close()
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Shutting down first proxy server...")
-        exit(0)
-
-
+    main()

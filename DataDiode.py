@@ -1,36 +1,45 @@
-"""
-
-"""
-
-import os
 import socket
+import io
+import os
 
-DATA_DIODE_ADDR = ("127.0.0.1", 61948) # IPv4 address and port of the data-diode
-PROXY2_ADDR = ("127.0.0.1", 61947) # IPv4 address and port of proxy2
+SECOND_PROXY_ADDR = ("127.0.0.1", 5062)
+DATA_DIODE_ADDR = ("127.0.0.1", 5061)
+NEW_FILE_NAME = "encrypt_data_diode"
+START_MESSAGE = b"SOF"
+END_MESSAGE = b"EOF"
 
 
-def recv_proxy1(sock):
-    with open("recv_diode", "wb") as file:
-        chunk, addr = sock.recvfrom(1024)
-        while chunk:
+def recv_file(sock):
+    with open(NEW_FILE_NAME, "wb") as file:
+        chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+        while chunk != END_MESSAGE:
             file.write(chunk)
-            chunk, addr = sock.recvfrom(1024)
+            chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
 
 
-def send_proxy2():
-    pass
+def send_file(sock, file):
+    sock.sendto(START_MESSAGE, SECOND_PROXY_ADDR)
+    chunk = file.read(io.DEFAULT_BUFFER_SIZE)
+    while chunk:
+        sock.sendto(chunk, SECOND_PROXY_ADDR)
+        chunk = file.read(io.DEFAULT_BUFFER_SIZE)
+    sock.sendto(END_MESSAGE, SECOND_PROXY_ADDR)
 
 
 def main():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(DIODE_ADDR)
-    while True:
-        recv_proxy1(sock)
-        send_proxy2(sock)
+    try:
+        server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        server_sock.bind(DATA_DIODE_ADDR)
+        while True:
+            client_msg, client_addr = server_sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+            if client_msg == START_MESSAGE:
+                recv_file(server_sock)
+            with open(NEW_FILE_NAME, "rb") as file:
+                send_file(server_sock, file)
+            os.remove(NEW_FILE_NAME)
+    except KeyboardInterrupt:
+        print("Closing Data-Diode...")
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("closing diode...")
+    main()
