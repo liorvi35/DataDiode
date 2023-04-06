@@ -1,44 +1,88 @@
+"""
+this file is implementation for the data diode, third entity in data flow (3/5)
+data diode is the part who receiving the encrypted message (file) via UDP (User Datagram Protocol) socket
+and sending to proxy 2 server using a UDP socket.
+
+since data diode fully based on UDP sockets, it ensures that data will flow only in one direction,
+that: [sender <-> proxy1] -> [data-diode] -> [proxy2 <-> receiver], we can think about the data-diode
+like as on an "iron wall" which data can only reach inside but do not can get outside
+
+:version: 1.3
+:since: 06.04.2023
+:authors: Lior Vinman & Yoad Tamar
+"""
+
 import socket
 import io
 import os
+import sys
 
-SECOND_PROXY_ADDR = ("127.0.0.1", 5062)
-DATA_DIODE_ADDR = ("127.0.0.1", 5061)
-NEW_FILE_NAME = "encrypt_data_diode"
-START_MESSAGE = b"SOF"
-END_MESSAGE = b"EOF"
+SECOND_PROXY_ADDR = ("127.0.0.1", 5062)  # address of second proxy server
+DATA_DIODE_ADDR = ("127.0.0.1", 5061)  # address of data-diode server
+NEW_FILE_NAME = "encrypt_data_diode"  # name for creation of a temporary file
+START_MESSAGE = b"SOF"  # message that points on a starting of sending file segments - "Start Of File"
+END_MESSAGE = b"EOF"  # message that points on an ending of sending file segments - "End Of File"
 
 
 def recv_file(sock):
-    with open(NEW_FILE_NAME, "wb") as file:
-        chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
-        while chunk != END_MESSAGE:
-            file.write(chunk)
+    """
+    this function receives a file in segments from a UDP socket
+    :param sock: file descriptor of UDP socket
+    """
+    try:
+        with open(NEW_FILE_NAME, "wb") as file:
             chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+            while chunk != END_MESSAGE:  # receiving the file
+                file.write(chunk)
+                chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+    except socket.error as e:
+        print(f"[-] Error occurred while receiving file: {e}.")
+        sys.exit(1)
 
 
 def send_file(sock, file):
-    sock.sendto(START_MESSAGE, SECOND_PROXY_ADDR)
-    chunk = file.read(io.DEFAULT_BUFFER_SIZE)
-    while chunk:
-        sock.sendto(chunk, SECOND_PROXY_ADDR)
+    """
+    this function is sending file in segments via a UDP socket
+    :param sock: file descriptor of UDP socket to send the file through it
+    :param file: file descriptor of a file to send
+    """
+    try:
+        sock.sendto(START_MESSAGE, SECOND_PROXY_ADDR)  # sending start message that indicates of file sending
         chunk = file.read(io.DEFAULT_BUFFER_SIZE)
-    sock.sendto(END_MESSAGE, SECOND_PROXY_ADDR)
+        while chunk:
+            sock.sendto(chunk, SECOND_PROXY_ADDR)  # sending file in chunks (step 'c-2')
+            chunk = file.read(io.DEFAULT_BUFFER_SIZE)
+        sock.sendto(END_MESSAGE, SECOND_PROXY_ADDR)  # sending start message that indicates of ending of file sending
+    except socket.error as e:
+        print(f"[-] Error occurred while sending file: {e}.")
+        sys.exit(1)
 
 
 def main():
     try:
-        server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        server_sock.bind(DATA_DIODE_ADDR)
-        while True:
-            client_msg, client_addr = server_sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
-            if client_msg == START_MESSAGE:
-                recv_file(server_sock)
-            with open(NEW_FILE_NAME, "rb") as file:
-                send_file(server_sock, file)
-            os.remove(NEW_FILE_NAME)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as main_sock:
+            main_sock.bind(DATA_DIODE_ADDR)
+            print("[+] Server bound and waiting for input...")
+
+            while True:
+                client_msg, client_addr = main_sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+                if client_msg == START_MESSAGE:
+                    recv_file(main_sock)
+                print("[+] File has been received.")
+
+                with open(NEW_FILE_NAME, "rb") as file:
+                    send_file(main_sock, file)
+                os.remove(NEW_FILE_NAME)
+                print("[+] File has been sent.\n------------------------------")
+
     except KeyboardInterrupt:
-        print("Closing Data-Diode...")
+        print("[-] Closing Data-Diode...")
+    except socket.error | IOError as e:
+        print(f"[-] Error: {e}.")
+        sys.exit(1)
+    finally:
+        if main_sock:
+            main_sock.close()
 
 
 if __name__ == "__main__":
