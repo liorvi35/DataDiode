@@ -84,7 +84,7 @@ def main():
                 print("[+] File has been sent.\n------------------------------")
 
     except KeyboardInterrupt:
-        print("\nClosing Proxy2...")
+        print("\n[-] Closing Proxy2...")
     except socket.error | IOError as e:
         print(f"[-] Error: {e}.")
         sys.exit(1)
