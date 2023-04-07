@@ -15,12 +15,16 @@ import socket
 import io
 import os
 import sys
+import tqdm
+import time
 
 RECEIVER_ADDR = ("127.0.0.1", 5063)  # address of receiver
 SECOND_PROXY_ADDR = ("127.0.0.1", 5062)  # address of proxy 2 server
 NEW_FILE_NAME = "encrypt_proxy2"  # name for creation of a temporary file
-START_MESSAGE = b"SOF"  # message that points on a starting of sending file segments - "Start Of File"
-END_MESSAGE = b"EOF"  # message that points on an ending of sending file segments - "End Of File"
+START_MESSAGE = b"S"  # message that points on a starting of sending file segments - "Start Of File"
+END_MESSAGE = b"E"  # message that points on an ending of sending file segments - "End Of File"
+CHUNK_SIZE = 1  # chunk size of receiving and sending file
+TIMEOUT = 0.1  # timeout after each sending or receiving segment
 
 
 def send_file(file):
@@ -31,11 +35,14 @@ def send_file(file):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as flow_sock:
             flow_sock.connect(RECEIVER_ADDR)  # connecting to receiver
-            chunk = file.read(io.DEFAULT_BUFFER_SIZE)
-            while chunk:
-                flow_sock.sendall(chunk)  # sending file to receiver with TCP (step 'd-1')
-                chunk = file.read(io.DEFAULT_BUFFER_SIZE)
-            flow_sock.shutdown(socket.SHUT_RDWR)
+            with tqdm.tqdm(total=(8 * os.path.getsize(NEW_FILE_NAME)), unit="b", unit_scale=True, desc="Sending") as pb:
+                chunk = file.read(CHUNK_SIZE)
+                while chunk:
+                    flow_sock.sendall(chunk)  # sending file to receiver with TCP (step 'd-1')
+                    pb.update(len(8 * chunk))
+                    time.sleep(TIMEOUT)
+                    chunk = file.read(CHUNK_SIZE)
+                flow_sock.shutdown(socket.SHUT_RDWR)
     except socket.error as e:
         print(f"[-] Error occurred while sending file: {e}.")
         sys.exit(1)
@@ -48,10 +55,12 @@ def recv_file(sock):
     """
     try:
         with open(NEW_FILE_NAME, "wb") as file:
-            chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
-            while chunk != END_MESSAGE:
-                file.write(chunk)
-                chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)  # receiving the file
+            with tqdm.tqdm(total=(8 * os.path.getsize(NEW_FILE_NAME)), unit="b", unit_scale=True, desc="Receiving") as pb:
+                chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+                while chunk != END_MESSAGE:
+                    file.write(chunk)
+                    pb.update(len(8 * chunk))
+                    chunk, client_addr = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)  # receiving the file
     except socket.error as e:
         print(f"[-] Error occurred while receiving file: {e}.")
         sys.exit(1)
@@ -75,7 +84,7 @@ def main():
                 print("[+] File has been sent.\n------------------------------")
 
     except KeyboardInterrupt:
-        print("Closing Proxy2...")
+        print("\nClosing Proxy2...")
     except socket.error | IOError as e:
         print(f"[-] Error: {e}.")
         sys.exit(1)
