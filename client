@@ -1,0 +1,97 @@
+import io
+import socket
+import os
+import sys
+
+SERVER_ADDRESS = ("127.0.0.1", 12345)
+THRESHOLD = 10
+ACK = b"ACK"
+CONN_REQ = b"CONN_REQ"
+SEND_REQ = b"REQ_TO_SEND"
+DUP = 1
+OUT_OF_ORDER = 2
+
+
+def check_ok(recv_seq, last_seq, protocol):
+    if protocol == DUP:
+        return recv_seq == last_seq
+    elif protocol == OUT_OF_ORDER:
+        return not recv_seq == last_seq + 1
+
+
+def send_packet(sock, data, seq_num, server, final):
+    ch = 'F' if final else 'N'
+    packet = f"{ch}{seq_num}:{data}"
+    sock.sendto(packet.encode(), server)
+
+
+def receive_acknowledgement(sock, expected_seq):
+    ack, address = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+    ack = ack.decode()
+    ack_seq = ack.split(":")[1]
+    return int(expected_seq)
+
+
+def main():
+    file_path = "file"
+    file_size = os.path.getsize(file_path)
+    num_packets = file_size // io.DEFAULT_BUFFER_SIZE + 1
+    print(f"num: {num_packets}")
+
+    print("start conn...")
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+        sock.settimeout(3)
+        sock.sendto(CONN_REQ, SERVER_ADDRESS)
+        msg, address = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+        if not msg == ACK:
+            print("CONN_REQ")
+            sys.exit()
+
+        sock.sendto(SEND_REQ, SERVER_ADDRESS)
+        msg, address = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+        if not msg == ACK:
+            print("SEND_REQ")
+            sys.exit()
+
+        with open(file_path, "r") as f:
+            print("start sending file...")
+            seq_num = 0
+            timeout = 0
+            WINDOW_SIZE = 1
+            expected_ack = 0
+            sent_packets = []
+
+            while num_packets:
+                packet_data = f.read(io.DEFAULT_BUFFER_SIZE)
+                send_packet(sock, packet_data, seq_num, SERVER_ADDRESS, seq_num == num_packets)
+                print(f"send packet:{seq_num}")
+                sent_packets.append(seq_num)
+                seq_num += 1
+                try:
+                    packet, address = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+                    packet = packet.decode()
+                    ack_seq = int(packet.split(":")[1])
+                    print(f"recv ACK:{ack_seq}")
+                    if ack_seq == expected_ack:
+                        expected_ack += 1
+                        WINDOW_SIZE = min(WINDOW_SIZE * 2, THRESHOLD)
+                    else:
+                        size = io.DEFAULT_BUFFER_SIZE * ack_seq
+                        f.seek(0)
+                        f.read(size)
+                        WINDOW_SIZE = max(WINDOW_SIZE // 2, 1)
+                except socket.timeout:
+                    if timeout < 3:
+                        timeout += 1
+                        print(f"TIME OUT... THIS IS {timeout}/{3} retransmission")
+                        continue
+                    else:
+                        print("TIME OUT OVER... CLOSING CONNECTION")
+                        sock.shutdown(socket.SHUT_RDWR)
+                        break
+            send_packet(sock, "", seq_num, SERVER_ADDRESS, True)
+
+
+if __name__ == "__main__":
+    main()
