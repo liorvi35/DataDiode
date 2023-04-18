@@ -1,0 +1,107 @@
+# last server
+import socket
+import sys
+import io
+
+SERVER_ADDRESS = ("127.0.0.1", 12345)
+TIMEOUT = 3
+THRESHOLD = 10
+CLIENTS_LIST = []
+CONN_REQ = b"CONN_REQ"
+ACK = b"ACK"
+SEND_REQ = b"REQ_TO_SEND"
+DUP = 1
+OUT_OF_ORDER = 2
+
+
+def check_ok(recv_seq, last_seq, protocol):
+    print(f"recv:{recv_seq}, last:{last_seq}, protocol:{protocol}")
+    if protocol == DUP:
+        print("dup...")
+        return recv_seq == last_seq
+    elif protocol == OUT_OF_ORDER:
+        print("out of order...")
+        return not recv_seq == last_seq + 1
+
+
+def send_acknowledgement(sock, client, num):
+    sock.sendto(f"ACK:{num}".encode(), client)
+
+
+def main():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+        sock.bind(SERVER_ADDRESS)
+        while True:
+            print("waiting...")
+            data, client = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+            print(f"data: {data.decode()} , {client}")
+
+            if data == CONN_REQ:
+                CLIENTS_LIST.append(client)  # Add client to list (authorisation)
+                sock.sendto(ACK, client)  # Send ACK to confirm connection
+                print(f"connection from {client}")
+                continue
+
+            elif data == SEND_REQ:
+                print("Authenticating client...")
+                if client in CLIENTS_LIST:
+                    sock.sendto(ACK, client)
+                    print("Authentication confirmed. Receiving file...")
+
+                sock.settimeout(TIMEOUT)
+
+                with open("recv", "a") as f:
+                    rec_seq_num = 0  # Sequence number in a given window (resets each time window slides)
+                    WINDOW_SIZE = 1
+                    rec_data_buffer = []  # Packet data buffer
+                    rec_index_buffer = []  # Packet index buffer
+                    rec_index_buffer.append(-1)
+                    timeout = 0
+                    last_packet = False
+                    # N12:data or F37:data
+
+                    while not last_packet:
+                        # Receive a packet
+                        try:
+                            packet, client = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+                            packet = packet.decode()  # N1232:data
+                            split_packet = packet.split(":")
+                            recv_seq = int(split_packet[0][1:])
+                            data = split_packet[1]
+                            last_packet = True if packet[0] == 'F' else False
+                            print(f"recv packet: {packet}")
+
+
+                            # Process the packet and handle lost or out-of-order packets
+                            if check_ok(recv_seq, rec_index_buffer[-1], DUP) or check_ok(recv_seq, rec_index_buffer[-1], OUT_OF_ORDER):
+                                print("bad...")
+                                send_acknowledgement(sock, client, rec_index_buffer[-1])
+                                WINDOW_SIZE = max(WINDOW_SIZE // 2, 1)
+                                continue
+
+                            # if it not dup/out of order
+                            rec_data_buffer.append(data)
+                            rec_index_buffer.append(recv_seq)
+                            send_acknowledgement(sock, client, recv_seq)
+                            print(f"send ACK:{recv_seq}")
+                            WINDOW_SIZE = min(WINDOW_SIZE * 2, THRESHOLD)
+
+                        except socket.timeout:
+                            if timeout < 3:
+                                timeout += 1
+                                print(f"TIME OUT... THIS IS {timeout}/{3} try to recv again...")
+                                continue
+                            else:
+                                print("TIME OUT OVER... CLOSING CONNECTION")
+                                break
+
+                    if last_packet:
+                        print(f"get all file...")
+                        for data in rec_data_buffer:
+                            f.write(data)
+
+                    CLIENTS_LIST.remove(client)
+
+
+if __name__ == "__main__":
+    main()
