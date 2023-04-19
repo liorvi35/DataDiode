@@ -10,17 +10,19 @@ CLIENTS_LIST = []
 CONN_REQ = b"CONN_REQ"
 ACK = b"ACK"
 SEND_REQ = b"REQ_TO_SEND"
+BUFFER_SIZE = 8192
 DUP = 1
 OUT_OF_ORDER = 2
 
 
 def check_ok(recv_seq, last_seq, protocol):
-    print(f"recv:{recv_seq}, last:{last_seq}, protocol:{protocol}")
     if protocol == DUP:
-        print("dup...")
+        if recv_seq == last_seq:
+            print("dup...")
         return recv_seq == last_seq
     elif protocol == OUT_OF_ORDER:
-        print("out of order...")
+        if not recv_seq == last_seq + 1:
+            print("out of order...")
         return not recv_seq == last_seq + 1
 
 
@@ -33,7 +35,7 @@ def main():
         sock.bind(SERVER_ADDRESS)
         while True:
             print("waiting...")
-            data, client = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+            data, client = sock.recvfrom(BUFFER_SIZE)
             print(f"data: {data.decode()} , {client}")
 
             if data == CONN_REQ:
@@ -63,14 +65,16 @@ def main():
                     while not last_packet:
                         # Receive a packet
                         try:
-                            packet, client = sock.recvfrom(io.DEFAULT_BUFFER_SIZE)
+                            packet, client = sock.recvfrom(BUFFER_SIZE)
                             packet = packet.decode()  # N1232:data
                             split_packet = packet.split(":")
                             recv_seq = int(split_packet[0][1:])
                             data = split_packet[1]
                             last_packet = True if packet[0] == 'F' else False
-                            print(f"recv packet: {packet}")
-
+                            print(f"recv: {packet}")
+                            #print(f"recv:{split_packet[0]}, last:{rec_index_buffer[-1]}")
+                            if last_packet:
+                                print("gat last packet")
 
                             # Process the packet and handle lost or out-of-order packets
                             if check_ok(recv_seq, rec_index_buffer[-1], DUP) or check_ok(recv_seq, rec_index_buffer[-1], OUT_OF_ORDER):
@@ -101,6 +105,7 @@ def main():
                             f.write(data)
 
                     CLIENTS_LIST.remove(client)
+                    sock.settimeout(None)
 
 
 if __name__ == "__main__":
