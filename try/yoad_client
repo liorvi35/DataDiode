@@ -7,7 +7,7 @@ import time
 # Format of ACK-packet: A:<Number>
 
 SERVER_ADDR = ("127.0.0.1", 5060)
-BUFFER_SIZE = 10
+BUFFER_SIZE = io.DEFAULT_BUFFER_SIZE
 CONN_REQ = b"C"
 ACK = b"A"
 WAITING = 0.1
@@ -74,7 +74,7 @@ def main():
                     print(f"wrong seq! \nack recv: {ack}")
 
                     file.seek(0)
-                    file.read(ack * BUFFER_SIZE)
+                    file.read(ack * 1)
 
                     seq = ack + 1
 
@@ -108,35 +108,3 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nYoad Tamar is my king :)")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
