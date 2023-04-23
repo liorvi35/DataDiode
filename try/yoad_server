@@ -3,7 +3,7 @@ import socket
 import time
 
 SERVER_ADDR = ("127.0.0.1", 5060)
-BUFFER_SIZE = 10 + 96
+BUFFER_SIZE = io.DEFAULT_BUFFER_SIZE + 96
 CONN_REQ = b"C"
 ACK = b"A"
 SEND_REQ = b"S"
@@ -57,6 +57,11 @@ def main():
             print("waiting...")
 
             data, client_addr = sock.recvfrom(BUFFER_SIZE)
+
+            if data[0:1] == b"F":
+                send_acknowledgement(sock, client_addr, None)
+                continue
+
 
             with open("recv", "wb") as file:
 
