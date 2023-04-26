@@ -13,7 +13,7 @@ You can install the Diode program by following these steps:
 
 1.  Clone this repository to your local machine using the following command:<br/>`git clone https://github.com/liorvi35/DataDiode.git`.
     
-2.  Install the required modules by running the following command:<br/>`pip install -r requirements.txt`.
+2.  Install the required modules by running the following command:<br/>`pip3 install -r requirements.txt`.
     
 3.  Install Docker by running the following command:<br/>`sudo snap install docker`.
 
