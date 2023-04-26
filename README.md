@@ -1,4 +1,4 @@
-# Data Diode
+# Data Diode - A unidirectional data flow
 
 ## Authors:
 -   <a href="https://github.com/liorvi35">@Lior Vinman<a/>
