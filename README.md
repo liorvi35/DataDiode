@@ -23,7 +23,7 @@ You can install the Diode program by following these steps:
     
 3.  Install Docker by running the following command:<br/>`sudo snap install docker`.
 
-4.  Set up the Docker container's by using:<br/>`docker-compose up` on the `compose-docker.yml` file.
+4.  Set up the Docker container's by using:<br/>`docker-compose up` on the `docker-compose.yml` file.
 
 5. (*)Do not forget to disable all containers at the end of use by using:<br/>`docker-compose down`. 
 
