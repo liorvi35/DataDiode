@@ -1,5 +1,11 @@
 # Data Diode
 
+## Authors:
+-   <a href="https://github.com/liorvi35">@Lior Vinman<a/>
+-   <a href="https://github.com/yoadtamar">@Yoad Tamar<a/>
+
+
+## Introduction:
 Data-Diode is an architecture (conception) where the data flow is unidirectional (not including the acknowledgments or other signals, for reliable communication). The data firstly flows from a sender which sends the data into the system to a first proxy server, data is being sent using TCP (Transmission Control Protocol) socket. After data is received by first proxy, it is being sent to a second proxy server but now using a RUDP (Reliable User Datagram Protocol, our implementation), the meaning is that if the first proxy will be attacked and captured, the attacker could not continue capturing data because he doesnt know how our's RUDP works. Then, finally, the data is being send from the second proxy to an end-user, receiver, using TCP.<br/>In our implementation we are sending a file and in each step in system's data flow, file's data is being transferred only in one direction<br/>(Sender->Proxy1->Proxy2->Receiver), of course except of acknowledgments.<br/>Architecture of a Data-Diode is a sort of one-sided firewall, what can improve the security of incoming data.
 
 ## Requirements
