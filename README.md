@@ -25,6 +25,8 @@ You can install the Diode program by following these steps:
 
 4.  Set up the Docker container's by using:<br/>`docker-compose up` on the `compose-docker.yml` file.
 
+5. (*)Do not forget to disable all containers at the end of use by using:<br/>`docker-compose down`. 
+
 ## Usage
 To use the Diode program, you need to run all python scripts from a Docker containers:
 1.  Open a terminal and run:<br/>`sudo su` and then `docker ps`
