@@ -49,9 +49,14 @@ def main():
     main function, firstly it opens the file and hashes into MD5,
     then opens a connection with first proxy server and sends him the file
     """
+    try:
     if len(sys.argv) != 2:
         print("Usage: 'python3 Sender.py <file>'.")
         sys.exit(FAIL)
+    except FileNotFoundError:
+        print("File does not exists")
+        sys.exit(FAIL)
+     
 
     with open(sys.argv[1], "rb") as file:
         print(f"MD5 = '{hash_file(file)}'.")
