@@ -49,36 +49,35 @@ def main():
     main function, firstly it opens the file and hashes into MD5,
     then opens a connection with first proxy server and sends him the file
     """
+    if len(sys.argv) != 2:
+        print("Usage: 'python3 Sender.py <file>'.")
+        sys.exit(FAIL)
+
     try:
-        if len(sys.argv) != 2:
-            print("Usage: 'python3 Sender.py <file>'.")
+        with open(sys.argv[1], "rb") as file:
+            print(f"MD5 = '{hash_file(file)}'.")
+
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP) as main_sock:
+                    main_sock.connect(FIRST_PROXY_ADDR)
+                    print(f"Established connection with: '{FIRST_PROXY_ADDR}'.")
+
+                    with tqdm.tqdm(total=os.path.getsize(sys.argv[1]), unit="B", unit_scale=True, desc="Sending") as pb:
+                        data = file.read(BUFFER_SIZE)
+                        while data:
+                            main_sock.sendall(data)
+                            pb.update(len(data))
+                            data = file.read(BUFFER_SIZE)
+                    print("File has been sent.")
+                    main_sock.shutdown(socket.SHUT_RDWR)
+            except KeyboardInterrupt:
+                print("\nClosing sender.")
+            except (Exception, socket.error) as e:
+                print(f"Error: {e}.")
             sys.exit(FAIL)
     except FileNotFoundError:
         print("File does not exists")
         sys.exit(FAIL)
-     
-
-    with open(sys.argv[1], "rb") as file:
-        print(f"MD5 = '{hash_file(file)}'.")
-
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP) as main_sock:
-                main_sock.connect(FIRST_PROXY_ADDR)
-                print(f"Established connection with: '{FIRST_PROXY_ADDR}'.")
-
-                with tqdm.tqdm(total=os.path.getsize(sys.argv[1]), unit="B", unit_scale=True, desc="Sending") as pb:
-                    data = file.read(BUFFER_SIZE)
-                    while data:
-                        main_sock.sendall(data)
-                        pb.update(len(data))
-                        data = file.read(BUFFER_SIZE)
-                print("File has been sent.")
-                main_sock.shutdown(socket.SHUT_RDWR)
-        except KeyboardInterrupt:
-            print("\nClosing sender.")
-        except (Exception, socket.error) as e:
-            print(f"Error: {e}.")
-            sys.exit(FAIL)
 
 
 if __name__ == "__main__":
