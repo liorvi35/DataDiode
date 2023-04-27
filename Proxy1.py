@@ -20,7 +20,7 @@ import io
 
 SECOND_PROXY_ADDR = ("10.9.0.4", 60573)  # address of proxy2
 FIRST_PROXY_ADDR = ("10.9.0.3", 61328)  # address of proxy1
-BUFFER_SIZE = io.DEFAULT_BUFFER_SIZE  # buffer size for send/receive
+BUFFER_SIZE = 2 * io.DEFAULT_BUFFER_SIZE   # buffer size for send/receive
 TEMP_FILE_NAME = "p1"  # temporary file name, saved as: p1_addr
 SEND_REQ = b"N1:1:S"  # request to send
 TIMEOUT = 1  # packet receive timeout
