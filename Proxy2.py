@@ -21,7 +21,7 @@ import os
 SECOND_PROXY_ADDR = ("10.9.0.4", 60573)  # address of proxy2
 FIRST_PROXY_ADDR = ("10.9.0.3", 61328)  # address of proxy1
 RECEIVER_ADDR = ("10.9.0.5", 56875)  # address of receiver
-BUFFER_SIZE = io.DEFAULT_BUFFER_SIZE + (2 * sys.getsizeof(b":")) + (2 * sys.getsizeof(int)) \
+BUFFER_SIZE = (2 * io.DEFAULT_BUFFER_SIZE) + (2 * sys.getsizeof(b":")) + (2 * sys.getsizeof(int)) \
               + max(sys.getsizeof(b"A"), sys.getsizeof(b"N"), sys.getsizeof(b"F"))  # buffer size for send/receive
 TEMP_FILE_NAME = "p2"  # temporary file name, saved as: p2_addr
 ACK = b"A"  # RUDP's acknowledgment signal
